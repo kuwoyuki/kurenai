@@ -6,10 +6,6 @@ defmodule Kurenai do
 
   alias Alchemy.Client
 
-  # @ffxiv_user_id "126958b1-7fdf-4146-9f09-d132d865ccda"
-  @ffxiv_username System.get_env("FFXIV_USERNAME")
-  @ffxiv_password System.get_env("FFXIV_PASSWORD")
-
   @spec start(any, any) :: {:ok, pid}
   def start(_type, _args) do
     case System.get_env("KURENAI_TOKEN") do
@@ -26,8 +22,7 @@ defmodule Kurenai do
 
         # TODO: this needs to be in a DB
         # Companion.configure(user_id: @ffxiv_user_id)
-        Companion.configure_random_uid()
-        {:ok, _} = Companion.login(%{username: @ffxiv_username, password: @ffxiv_password})
+        Kurenai.Commands.FFXIV.authenticate()
         Logger.debug("Logged into FFXIV Companion API.")
 
         Cogs.set_prefix("k+")

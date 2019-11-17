@@ -6,6 +6,34 @@ defmodule Kurenai.Commands.Basic do
 
   @red_embed %Embed{color: 0xD44480}
 
+  @help %{
+    "listchars" => """
+    Usage:
+    * `k+listchars` sends an embed with Character Name@World and the character ID
+    Pass the character ID to the k+loginchar command to interact with the world:
+    * `k+loginchar cid`
+    """,
+    "loginchar" => """
+    Usage:
+    * `k+loginchar cid` log into the character `cid` is the character ID from `k+listchars`
+    """,
+    "search" => """
+    Usage:
+    * `k+search item_id` log into the character `cid` is the character ID from `k+listchars`
+    * Item ID can be easily found on https://www.garlandtools.org/db/
+    Format:
+      Seller@World, HQ: 1/0, Price: Gil, Stack, @ location
+    * Locations: https://github.com/xivapi/ffxiv-datamining/blob/master/csv/Town.csv
+    """
+  }
+
+  Cogs.def help(cmd) do
+    case Cogs.all_commands()[cmd] do
+      nil -> Cogs.say("#{cmd} is not a command")
+      _ -> Cogs.say(@help[cmd])
+    end
+  end
+
   # Returns a nicely formatted uptime string
   def uptime do
     {time, _} = :erlang.statistics(:wall_clock)

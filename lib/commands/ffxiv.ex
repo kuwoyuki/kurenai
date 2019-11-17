@@ -4,7 +4,19 @@ defmodule Kurenai.Commands.FFXIV do
   alias Alchemy.{Client, Embed}
   import Embed
 
+  @ffxiv_username System.get_env("FFXIV_USERNAME")
+  @ffxiv_password System.get_env("FFXIV_PASSWORD")
   @purple_embed %Embed{color: 0xAA759F}
+
+  def authenticate do
+    Companion.configure_random_uid()
+    Companion.login(%{username: @ffxiv_username, password: @ffxiv_password})
+  end
+
+  Cogs.def reauthenticate do
+    {:ok, details} = authenticate()
+    Cogs.say("Reauthenticated. UID: " <> details[:uid])
+  end
 
   Cogs.def listchars do
     Companion.characters()["accounts"]
