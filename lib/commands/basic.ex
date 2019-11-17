@@ -19,13 +19,21 @@ defmodule Kurenai.Commands.Basic do
     """,
     "search" => """
     Usage:
-    * `k+search item_id` log into the character `cid` is the character ID from `k+listchars`
-    * Item ID can be easily found on https://www.garlandtools.org/db/
-    Format:
-      Seller@World, HQ: 1/0, Price: Gil, Stack, @ location
-    * Locations: https://github.com/xivapi/ffxiv-datamining/blob/master/csv/Town.csv
+    * `k+search "item ID or name"` wildcard search for an item by name or an integer ID
+    Item IDs can be found on https://www.garlandtools.org/db/, use those if name search
+    yields an incorrect result.
+    """,
+    "refreshtoken" => """
+    Refresh FFXIV Companion API token, use this if the FFXIV commands are failing (returning nothing?)
+    """,
+    "reauthenticate" => """
+    Use this if `k+refreshtoken` doesn't help.
     """
   }
+
+  Cogs.def help() do
+    Cogs.all_commands() |> Map.keys() |> Enum.join(", ") |> Cogs.say()
+  end
 
   Cogs.def help(cmd) do
     case Cogs.all_commands()[cmd] do

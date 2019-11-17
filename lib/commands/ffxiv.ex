@@ -10,10 +10,27 @@ defmodule Kurenai.Commands.FFXIV do
   @ffxiv_username System.get_env("FFXIV_USERNAME")
   @ffxiv_password System.get_env("FFXIV_PASSWORD")
   @purple_embed %Embed{color: 0xAA759F}
+  @hq_emoji "<:hq1:645672031140184093>"
+  @town %{
+    0 => "Nowheresville",
+    1 => "Limsa Lominsa",
+    2 => "Gridania",
+    3 => "Ul'dah",
+    4 => "Ishgard",
+    7 => "Kugane",
+    10 => "Crystarium"
+  }
+
+  def is_hq(x), do: if(x == 1, do: @hq_emoji, else: "")
 
   def authenticate do
     Companion.configure_random_uid()
     Companion.login(%{username: @ffxiv_username, password: @ffxiv_password})
+  end
+
+  Cogs.def refreshtoken do
+    :ok = Companion.Auth.refresh_token()
+    Cogs.say("ok.")
   end
 
   Cogs.def reauthenticate do
@@ -78,7 +95,6 @@ defmodule Kurenai.Commands.FFXIV do
         :price => x["sellPrice"] |> String.to_integer(),
         :stack => x["stack"],
         :hq => x["hq"],
-        # TODO: show a name from Towns.csv
         :location => x["registerTown"],
         :materia => x["materia"],
         :materias => x["materias"],
@@ -87,83 +103,63 @@ defmodule Kurenai.Commands.FFXIV do
     end)
   end
 
-  # Cogs.def search(item, world) do
-  #   %{"ID" => item_id, "Icon" => icon_path, "Name" => item_name} =
-  #     HTTPoison.get!(
-  #       "https://xivapi.com/search?indexes=item&filters=ItemSearchCategory.ID%3E=1&columns=ID,Name,Icon&string=#{
-  #         item
-  #       }&limit=1"
-  #     ).body
-  #     |> Poison.decode!()
-  #     |> Access.get("Results")
-  #     |> hd
-
-  #   market_embed = %Embed{
-  #     title: item,
-  #     color: 0xAA759F,
-  #     thumbnail: "https://xivapi.com/" <> icon_path
-  #   }
-
-  #   Companion.characters()["accounts"]
-  #   |> hd
-  #   |> Map.get("characters")
-  #   |> Enum.find(fn el ->
-  #     el["world"] == world
-  #   end)
-  #   |> Access.get("cid")
-  #   |> char_market_list(item_id)
-  #   |> Enum.take(25)
-  #   |> Enum.reduce(@purple_embed, fn %{
-  #                                      :seller => seller,
-  #                                      :price => price,
-  #                                      :stack => stack,
-  #                                      :hq => hq,
-  #                                      :location => location,
-  #                                      :world => world
-  #                                    },
-  #                                    embed ->
-  #     field(embed, "#{seller}@#{world}", "HQ: #{hq}, $#{price}, x#{stack}, | loc. #{location}")
-  #   end)
-  #   |> Embed.title(item_name)
-  #   |> Embed.thumbnail("https://xivapi.com/" <> icon_path)
-  #   |> Embed.send()
-  # end
+  @spec market_search(any) :: [any]
+  def market_search(item) do
+    Companion.characters()["accounts"]
+    |> hd
+    |> Map.get("characters")
+    |> Enum.map(&char_market_list(&1, item["ID"]))
+    |> List.flatten()
+    |> Enum.sort_by(&Map.fetch(&1, :price))
+    |> Enum.take(25)
+  end
 
   Cogs.set_parser(:search, &Kurenai.Helpers.parse_quoted/1)
 
   Cogs.def search(item) do
     Client.trigger_typing(message.channel_id)
 
-    %{"ID" => item_id, "Icon" => icon_path, "Name" => item_name} =
-      HTTPoison.get!(
-        "https://xivapi.com/search?indexes=item&filters=ItemSearchCategory.ID%3E=1&columns=ID,Name,Icon&string=#{
-          item
-        }&limit=1"
-      ).body
-      |> Poison.decode!()
-      |> Access.get("Results")
-      |> hd
+    item =
+      if match?({_, ""}, Integer.parse(item)),
+        do:
+          HTTPoison.get!("https://xivapi.com/item/#{item}?columns=ID,Name,Icon").body
+          |> Poison.decode!(),
+        else:
+          HTTPoison.get!(
+            "https://xivapi.com/search?indexes=item&filters=ItemSearchCategory.ID%3E=1&columns=ID,Name,Icon&string=#{
+              item
+            }&limit=1"
+          ).body
+          |> Poison.decode!()
+          |> Access.get("Results")
+          |> hd
 
-    Companion.characters()["accounts"]
-    |> hd
-    |> Map.get("characters")
-    |> Enum.map(&char_market_list(&1, item_id))
-    |> List.flatten()
-    |> Enum.sort_by(&Map.fetch(&1, :price))
-    |> Enum.take(25)
-    |> Enum.reduce(@purple_embed, fn %{
-                                       :seller => seller,
-                                       :price => price,
-                                       :stack => stack,
-                                       :hq => hq,
-                                       :location => location,
-                                       :world => iworld
-                                     },
-                                     embed ->
-      field(embed, seller <> "@" <> iworld, "HQ: #{hq}, $#{price}, x#{stack} @ #{location}")
-    end)
-    |> Embed.title(item_name)
-    |> Embed.thumbnail("https://xivapi.com/" <> icon_path)
-    |> Embed.send()
+    %{"Icon" => icon_path, "Name" => item_name} = item
+
+    try do
+      item
+      |> market_search()
+      |> Enum.reduce(@purple_embed, fn %{
+                                         :seller => seller,
+                                         :price => price,
+                                         :stack => stack,
+                                         :hq => hq,
+                                         :location => location,
+                                         :world => iworld
+                                       },
+                                       embed ->
+        field(
+          embed,
+          is_hq(hq) <> " #{seller}@#{iworld}",
+          "**$#{price}**, x#{stack} @ " <> @town[location],
+          inline: true
+        )
+      end)
+      |> Embed.title(item_name)
+      |> Embed.thumbnail("https://xivapi.com/" <> icon_path)
+      |> Embed.send()
+    catch
+      _ -> Cogs.say("Booped. Try the command again or use `k+refreshtoken`")
+    end
   end
 end
